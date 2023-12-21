@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Получение данных</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #cardContainer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      align-items: flex-start;
+      width: 80%;
+    }
+
+    .card {
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin: 10px;
+      width: 200px;
+    }
+
+    .listContainer {
+      text-align: left;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Получение данных</h1>
+
+  <div id="cardContainer"></div>
+
+  <script>
+    
+    messageMap = new Map();
+    checkerMap = new Map();
+    const cardIntervals = {};
+    async function updateCards() {
+      try {
+        const response = await fetch('http://localhost:3000/getMessageNums');
+        if (!response.ok) {
+          throw new Error('Failed to fetch card data');
+        }
+
+        const cardInfoArray = await response.json();
+        console.log('Received card data:', cardInfoArray);
+
+        // Обновляем/создаем карточки на основе полученных данных
+        cardInfoArray.forEach(cardInfo => {
+          const cardElement = document.getElementById(`card${cardInfo.id}`);
+
+          if (cardElement) {
+            // Карточка уже существует, обновим ее данные
+            //updateCard(cardInfo.id);
+          } else {
+            // Карточка не существует, создадим ее
+            createCard({
+              id: cardInfo.id,
+              list: cardInfo.amount,
+              //Array.from({ length: cardInfo.amount }, (_, index) => `Сообщение ${cardInfo.id}-${index + 1} строк`)
+            });
+          }
+        });
+      } catch (error) {
+        console.error(error.message);
+      }
+    }
+
+    async function updateCard(cardId, cardAmount, tries) {
+      try {
+        if (cardIntervals[cardId]) {
+            clearInterval(cardIntervals[cardId]);
+        }
+
+        const response = await fetch(`http://localhost:3000/card/${cardId}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch data for card ${cardId}`);
+        }
+
+        const cardData = await response.json();
+        console.log(`Received data for card ${cardId}:`, cardData);
+
+        const currentList = messageMap.get(cardId) || [];
+
+        // Проверяем, есть ли элементы в cardData.list, которых ещё нет в currentList по id
+        const newItems = cardData.list.filter(item => !currentList.some(existingItem => existingItem.id === item.id));
+
+        // Добавляем новые элементы к текущему списку
+        const updatedList = currentList.concat(newItems);
+        updatedList.sort((a, b) => a.id - b.id);
+        messageMap.set(cardId, updatedList);
+        console.log(tries);
+        if(cardAmount == messageMap.get(cardId).length || tries == 0){
+            //тут останови выполнение интервала
+            const response = await fetch(`http://localhost:3000/card/${cardId}`, {
+                method: 'DELETE',
+            });
+            if(tries == 0 && cardAmount !== messageMap.get(cardId).length){
+                const cardElement = document.getElementById(`card${cardId}`);
+                const listElement = cardElement.querySelector(".listContainer ul");
+                while (listElement.children.length > 1) {
+                    listElement.removeChild(listElement.lastChild);
+                }
+                const listItem = document.createElement("li");
+                listItem.textContent = 'Превышено 5 попыток';
+                listElement.appendChild(listItem);
+                return;
+            }
+            clearInterval(cardIntervals[cardId]);
+        }else {
+            cardIntervals[cardId] = setInterval(() => {
+                updateCard(cardId, cardAmount, --tries);
+            }, 1000); // Например, обновление каждую секунду
+        }
+        // Обновляем карточку на основе полученных данных
+        const cardElement = document.getElementById(`card${cardId}`);
+
+
+        if (cardElement) {
+            const listElement = cardElement.querySelector(".listContainer ul");
+            while (listElement.children.length > 1) {
+                listElement.removeChild(listElement.lastChild);
+            }
+            // Перебираем новые элементы и добавляем их в конец списка
+            messageMap.get(parseInt(cardId, 10)).forEach(item => {
+                const listItem = document.createElement("li");
+                listItem.textContent = item.id + ') ' + item.text;
+                listElement.appendChild(listItem);
+            });
+        }
+      } catch (error) {
+        console.error(error.message);
+      }
+    }
+
+    function createCard(cardData) {
+      const cardContainer = document.getElementById("cardContainer");
+
+      const cardElement = document.createElement("div");
+      cardElement.className = "card";
+      cardElement.id = `card${cardData.id}`;
+
+      const listContainer = document.createElement("div");
+      listContainer.className = "listContainer";
+
+      const listElement = document.createElement("ul");
+      const listItem = document.createElement("li");
+      listItem.textContent = `Сообщение ${cardData.id} - ${cardData.list} строк`;
+      listElement.appendChild(listItem);
+
+      listContainer.appendChild(listElement);
+      cardElement.appendChild(listContainer);
+      cardContainer.appendChild(cardElement);
+
+      // Запускаем обновление карточки через некоторое время (можно настраивать)
+      updateCard(cardData.id, cardData.list, 5);
+    }
+
+    // Начальное обновление карточек при загрузке страницы
+    setInterval(async () => {
+        await updateCards();
+      }, 1000);
+  </script>
+</body>
+</html>

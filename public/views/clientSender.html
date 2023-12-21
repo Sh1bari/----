@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ввод сообщений</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+      margin: 0;
+    }
+
+    div {
+      margin-bottom: 10px;
+    }
+
+    input {
+      padding: 5px;
+      margin-right: 5px;
+    }
+
+    button {
+      padding: 5px;
+      cursor: pointer;
+    }
+
+    #messageList {
+      margin-top: 10px;
+    }
+
+    .messageItem {
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Отправка данных</h1>
+
+  <div>
+    <input type="text" id="messageInput" placeholder="Введите сообщение" onkeydown="handleKeyDown(event)">
+    <button onclick="createMessage()">Ввод</button>
+  </div>
+  <div id="messageList">
+    <!-- Здесь будут отображаться сообщения -->
+  </div>
+  <div>
+    <button onclick="sendMessage()">Отправить</button>
+  </div>
+
+  <script>
+
+  let list = [];
+  let messageCounter = 1;
+
+  let messageData = {
+    messageNum: 1,
+    messageList: []
+  };
+
+  function sendMessage() {
+    if(list == 0){
+      return;
+    }
+    messageData.messageList = list;
+    fetch('http://localhost:3000/sendMessage', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messageData),
+    })
+    .then(response => response.json())
+    .then(data => {
+      messageCounter = 1;
+      messageData.messageNum++;
+      console.log('Server response:', data);
+      // Если сервер успешно обработал запрос, очищаем messageList и массив list
+      const messageList = document.getElementById('messageList');
+      while (messageList.firstChild) {
+        messageList.removeChild(messageList.firstChild);
+      }
+      messageData.messageList = [];
+      list = [];
+    })
+    .catch(error => console.error('Error:', error));
+  }
+
+  function createMessage() {
+    const messageInput = document.getElementById('messageInput');
+    const messageList = document.getElementById('messageList');
+
+    const messageText = messageInput.value.trim();
+    if (messageText !== '') {
+      // Добавляем сообщение в список
+      list.push({ id: messageCounter, text: messageText });
+
+      // Отображаем сообщение в интерфейсе
+      const messageItem = document.createElement('div');
+      messageItem.className = 'messageItem';
+      messageItem.textContent = `${messageCounter}. ${messageText}`;
+      messageList.appendChild(messageItem);
+
+      // Очищаем инпут и увеличиваем счетчик
+      messageInput.value = '';
+      messageCounter++;
+    }
+  }
+
+function handleKeyDown(event) {
+  if (event.key === 'Enter') {
+    createMessage();
+  }
+}
+
+  </script>
+</body>
+</html>
